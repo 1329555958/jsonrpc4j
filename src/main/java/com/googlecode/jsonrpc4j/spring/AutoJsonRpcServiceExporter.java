@@ -61,14 +61,12 @@ public class AutoJsonRpcServiceExporter implements BeanFactoryPostProcessor {
     private static Map<String, String> findServiceBeanDefinitions(ConfigurableListableBeanFactory beanFactory) {
         final Map<String, String> serviceBeanNames = new HashMap<>();
         for (String beanName : beanFactory.getBeanDefinitionNames()) {
-
             JsonRpcService jsonRpcPath = beanFactory.findAnnotationOnBean(beanName, JsonRpcService.class);
             if (hasServiceAnnotation(jsonRpcPath)) {
                 String pathValue = jsonRpcPath.value();
                 //默认使用bean名称作为路径
                 if (StringUtils.isEmpty(pathValue)) {
-                    Object bean = beanFactory.getBean(beanName);
-                    pathValue = Util.className2Path(bean.getClass().getName());
+                    pathValue = Util.className2Path(getServiceInterfaceName(beanFactory, beanName));
                 }
                 logger.debug("Found JSON-RPC path '{}' for bean [{}].", pathValue, beanName);
                 if (isNotDuplicateService(serviceBeanNames, beanName, pathValue))
@@ -77,6 +75,23 @@ public class AutoJsonRpcServiceExporter implements BeanFactoryPostProcessor {
         }
         collectFromParentBeans(beanFactory, serviceBeanNames);
         return serviceBeanNames;
+    }
+
+    /**
+     * 获取rpc服务的实现类对应的服务接口的名称
+     *
+     * @param beanFactory 工厂
+     * @param beanName    服务实现类名称
+     * @return 接口名称, 找不到时返回bean名称
+     */
+    private static String getServiceInterfaceName(ConfigurableListableBeanFactory beanFactory, String beanName) {
+        BeanDefinition serviceBeanDefinition = beanFactory.getBeanDefinition(beanName);
+        for (Class<?> currentInterface : getBeanInterfaces(serviceBeanDefinition, beanFactory.getBeanClassLoader())) {
+            if (currentInterface.isAnnotationPresent(JsonRpcService.class)) {
+                return currentInterface.getName();
+            }
+        }
+        return beanName;
     }
 
     @SuppressWarnings("Convert2streamapi")
@@ -177,7 +192,7 @@ public class AutoJsonRpcServiceExporter implements BeanFactoryPostProcessor {
         throw new RuntimeException(format("Bean with name '%s' can no longer be found.", serviceBeanName));
     }
 
-    private Class<?>[] getBeanInterfaces(BeanDefinition serviceBeanDefinition, ClassLoader beanClassLoader) {
+    private static Class<?>[] getBeanInterfaces(BeanDefinition serviceBeanDefinition, ClassLoader beanClassLoader) {
         String beanClassName = serviceBeanDefinition.getBeanClassName();
         try {
             Class<?> beanClass = forName(beanClassName, beanClassLoader);
