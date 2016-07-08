@@ -13,9 +13,11 @@ import java.lang.annotation.Target;
 @Retention(RUNTIME)
 public @interface JsonRpcService {
 
-	/**
-	 * The path that the service is available at.
-	 * @return the service path
-	 */
-	String value();
+    /**
+     * The path that the service is available at.
+     * 默认是beanName
+     *
+     * @return the service path
+     */
+    String value() default "";
 }

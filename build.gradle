@@ -16,7 +16,7 @@ plugins {
 }
 
 description = 'This project aims to provide the facility to easily implement JSON-RPC for the java programming language.'
-version = '1.4.6'
+version = '2.0.1'
 group = 'com.github.briandilley.jsonrpc4j'
 
 sourceCompatibility = 1.7
@@ -80,15 +80,15 @@ dependencies {
 
 jar {
     manifest {
-        instruction 'Import-Package', 
-            'org.aopalliance.intercept;resolution:="optional"',
-            'org.apache.http.*;resolution:="optional"',
-            'org.springframework.*;resolution:="optional"',
-            'org.apache.commons.logging;resolution:="optional"',
-            'javax.portlet;resolution:="optional"',
-            'javax.servlet*;version=0.0.0',
-            '*'
-  }
+        instruction 'Import-Package',
+                'org.aopalliance.intercept;resolution:="optional"',
+                'org.apache.http.*;resolution:="optional"',
+                'org.springframework.*;resolution:="optional"',
+                'org.apache.commons.logging;resolution:="optional"',
+                'javax.portlet;resolution:="optional"',
+                'javax.servlet*;version=0.0.0',
+                '*'
+    }
 }
 
 jacoco {
@@ -172,3 +172,9 @@ bintray {
 bintrayUpload {
     dependsOn "publishToMavenLocal"
 }
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+}
+
+[compileJava, compileTestJava, javadoc]*.options*.encoding = "UTF-8"
