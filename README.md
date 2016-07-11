@@ -25,6 +25,27 @@ JSON-RPC).
   * Custom error resolving
   * Composite services
 
+## 新增特性
+- 支持默认rpc服务路径是完整类路径
+```
+package com.wch.jsonrpc.rpcservice;
+//等同于@JsonRpcService("com/wch/jsonrpc/rpcservice/UserService")
+@JsonRpcService
+public interface UserService {}
+```
+
+- 添加ribbon，负载均衡
+启动类添加`@EnableEurekaClient`,添加服务发现类,如果需要调用多个rpc服务可以添加多个
+```
+    @Bean
+    public static AutoJsonRpcClientProxyCreator clientProxyCreator() {
+        AutoJsonRpcClientProxyCreator creator = new AutoJsonRpcClientProxyCreator();
+        creator.setScanPackage(UserService.class.getPackage().getName()); // rpc 接口的包路径
+        creator.setServiceId("rpc-service"); //服务实例名称
+        return creator;
+    }
+```
+
 ## Maven
 This project is built with [Maven][Maven page]. Be
 sure to check the pom.xml for the dependencies if you're not using
@@ -41,12 +62,14 @@ In `<dependencies>`:
 
 	<!-- jsonrpc4j -->
 	<dependency>
-		<groupId>com.github.briandilley.jsonrpc4j</groupId>
+		<groupId>com.github.wch.jsonrpc4j</groupId>
 		<artifactId>jsonrpc4j</artifactId>
-		<version>1.4.6</version>
+		<version>2.0.1</version>
 	</dependency>
 
 ```
+
+
 
 If you want to just download the projects output JAR and it's dependencies you can
 do it over at the [Maven repository][Maven repository].

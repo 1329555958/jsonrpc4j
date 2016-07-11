@@ -16,9 +16,9 @@ plugins {
     id "io.spring.dependency-management" version "0.6.0.RELEASE"
 }
 
-description = 'This project aims to provide the facility to easily implement JSON-RPC for the java programming language.'
+description = 'This project aims to provide the facility to easily implement JSON-RPC for the java programming language.can user ribbion to loadbalance'
 version = '2.0.1'
-group = 'com.github.briandilley.jsonrpc4j'
+group = 'com.github.wch.jsonrpc4j'
 
 sourceCompatibility = 1.7
 targetCompatibility = 1.7
