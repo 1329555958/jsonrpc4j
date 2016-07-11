@@ -6,6 +6,9 @@ import org.springframework.aop.framework.ProxyFactory;
 import org.springframework.beans.factory.BeanFactoryUtils;
 import org.springframework.beans.factory.FactoryBean;
 import org.springframework.beans.factory.InitializingBean;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cloud.client.ServiceInstance;
+import org.springframework.cloud.client.loadbalancer.LoadBalancerClient;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.remoting.support.UrlBasedRemoteAccessor;
@@ -15,6 +18,7 @@ import com.googlecode.jsonrpc4j.JsonRpcHttpClient;
 import com.googlecode.jsonrpc4j.ReflectionUtil;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.util.StringUtils;
 
 import java.lang.reflect.Method;
 import java.lang.reflect.Type;
@@ -29,146 +33,178 @@ import javax.net.ssl.SSLContext;
 /**
  * {@link FactoryBean} for creating a {@link UrlBasedRemoteAccessor}
  * (aka consumer) for accessing an HTTP based JSON-RPC service.
- *
  */
 @SuppressWarnings("unused")
 class JsonProxyFactoryBean extends UrlBasedRemoteAccessor implements MethodInterceptor, InitializingBean, FactoryBean<Object>, ApplicationContextAware {
 
-	private Object proxyObject = null;
-	private RequestListener requestListener = null;
-	private ObjectMapper objectMapper = null;
-	private JsonRpcHttpClient jsonRpcHttpClient = null;
-	private Map<String, String> extraHttpHeaders = new HashMap<>();
-	private String contentType;
+    private Object proxyObject = null;
+    private RequestListener requestListener = null;
+    private ObjectMapper objectMapper = null;
+    private JsonRpcHttpClient jsonRpcHttpClient = null;
+    private Map<String, String> extraHttpHeaders = new HashMap<>();
+    private String contentType;
 
-	private SSLContext sslContext = null;
-	private HostnameVerifier hostNameVerifier = null;
+    private SSLContext sslContext = null;
+    private HostnameVerifier hostNameVerifier = null;
 
-	private ApplicationContext applicationContext;
+    private ApplicationContext applicationContext;
 
-	/**
-	 * {@inheritDoc}
-	 */
-	@Override
-	@SuppressWarnings("unchecked")
-	public void afterPropertiesSet() {
-		super.afterPropertiesSet();
-		proxyObject = ProxyFactory.getProxy(getServiceInterface(), this);
 
-		if (objectMapper == null && applicationContext != null && applicationContext.containsBean("objectMapper")) {
-			objectMapper = (ObjectMapper) applicationContext.getBean("objectMapper");
-		}
-		if (objectMapper == null && applicationContext != null) {
-			try {
-				objectMapper = BeanFactoryUtils.beanOfTypeIncludingAncestors(applicationContext, ObjectMapper.class);
-			} catch (Exception e) {
-				logger.debug(e);
-			}
-		}
-		if (objectMapper == null) {
-			objectMapper = new ObjectMapper();
-		}
+    private static LoadBalancerClient loadBalancerClient;
+    //服务名称
+    private String serviceId;
 
-		try {
-			jsonRpcHttpClient = new JsonRpcHttpClient(objectMapper, new URL(getServiceUrl()), extraHttpHeaders);
-			jsonRpcHttpClient.setRequestListener(requestListener);
-			jsonRpcHttpClient.setSslContext(sslContext);
-			jsonRpcHttpClient.setHostNameVerifier(hostNameVerifier);
 
-			if (contentType != null) {
-				jsonRpcHttpClient.setContentType(contentType);
-			}
-		} catch (MalformedURLException mue) {
-			throw new RuntimeException(mue);
-		}
-	}
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    @SuppressWarnings("unchecked")
+    public void afterPropertiesSet() {
+        super.afterPropertiesSet();
+        proxyObject = ProxyFactory.getProxy(getServiceInterface(), this);
 
-	/**
-	 * {@inheritDoc}
-	 */
-	@Override
-	public Object invoke(MethodInvocation invocation)
-			throws Throwable {
-		Method method = invocation.getMethod();
-		if (method.getDeclaringClass() == Object.class && method.getName().equals("toString")) { return proxyObject.getClass().getName() + "@" + System.identityHashCode(proxyObject); }
+        if (objectMapper == null && applicationContext != null && applicationContext.containsBean("objectMapper")) {
+            objectMapper = (ObjectMapper) applicationContext.getBean("objectMapper");
+        }
+        if (objectMapper == null && applicationContext != null) {
+            try {
+                objectMapper = BeanFactoryUtils.beanOfTypeIncludingAncestors(applicationContext, ObjectMapper.class);
+            } catch (Exception e) {
+                logger.debug(e);
+            }
+        }
+        if (objectMapper == null) {
+            objectMapper = new ObjectMapper();
+        }
 
-		Type retType = (invocation.getMethod().getGenericReturnType() != null) ? invocation.getMethod().getGenericReturnType() : invocation.getMethod().getReturnType();
-		Object arguments = ReflectionUtil.parseArguments(invocation.getMethod(), invocation.getArguments());
+        try {
+            jsonRpcHttpClient = new JsonRpcHttpClient(objectMapper, extraHttpHeaders);
+            jsonRpcHttpClient.setRequestListener(requestListener);
+            jsonRpcHttpClient.setSslContext(sslContext);
+            jsonRpcHttpClient.setHostNameVerifier(hostNameVerifier);
+            if (StringUtils.isEmpty(serviceId)) {
+                jsonRpcHttpClient.setServiceUrl(new URL(getServiceUrl()));
+            } else {
+                jsonRpcHttpClient.setLoadBalancerClient(loadBalancerClient);
+                jsonRpcHttpClient.setServiceId(serviceId);
+                jsonRpcHttpClient.setServicePath(getServiceUrl());
+            }
 
-		return jsonRpcHttpClient.invoke(invocation.getMethod().getName(), arguments, retType, extraHttpHeaders);
-	}
+            if (contentType != null) {
+                jsonRpcHttpClient.setContentType(contentType);
+            }
+        } catch (MalformedURLException mue) {
+            throw new RuntimeException(mue);
+        }
+    }
 
-	/**
-	 * {@inheritDoc}
-	 */
-	@Override
-	public Object getObject() {
-		return proxyObject;
-	}
+    public String getServiceId() {
+        return serviceId;
+    }
 
-	/**
-	 * {@inheritDoc}
-	 */
-	@Override
-	public Class<?> getObjectType() {
-		return getServiceInterface();
-	}
+    public void setServiceId(String serviceId) {
+        this.serviceId = serviceId;
+    }
 
-	/**
-	 * {@inheritDoc}
-	 */
-	@Override
-	public boolean isSingleton() {
-		return true;
-	}
+    public LoadBalancerClient getLoadBalancerClient() {
+        return loadBalancerClient;
+    }
 
-	/**
-	 * {@inheritDoc}
-	 */
-	@Override
-	public void setApplicationContext(ApplicationContext applicationContext) {
-		this.applicationContext = applicationContext;
-	}
+    @Autowired
+    public void setLoadBalancerClient(LoadBalancerClient loadBalancerClient) {
+        this.loadBalancerClient = loadBalancerClient;
+    }
 
-	/**
-	 * @param objectMapper the objectMapper to set
-	 */
-	public void setObjectMapper(ObjectMapper objectMapper) {
-		this.objectMapper = objectMapper;
-	}
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Object invoke(MethodInvocation invocation)
+            throws Throwable {
+        Method method = invocation.getMethod();
+        if (method.getDeclaringClass() == Object.class && method.getName().equals("toString")) {
+            return proxyObject.getClass().getName() + "@" + System.identityHashCode(proxyObject);
+        }
 
-	/**
-	 * @param extraHttpHeaders the extraHttpHeaders to set
-	 */
-	public void setExtraHttpHeaders(Map<String, String> extraHttpHeaders) {
-		this.extraHttpHeaders = extraHttpHeaders;
-	}
+        Type retType = (invocation.getMethod().getGenericReturnType() != null) ? invocation.getMethod().getGenericReturnType() : invocation.getMethod().getReturnType();
+        Object arguments = ReflectionUtil.parseArguments(invocation.getMethod(), invocation.getArguments());
 
-	/**
-	 * @param requestListener the requestListener to set
-	 */
-	public void setRequestListener(RequestListener requestListener) {
-		this.requestListener = requestListener;
-	}
+        return jsonRpcHttpClient.invoke(invocation.getMethod().getName(), arguments, retType, extraHttpHeaders);
+    }
 
-	/**
-	 * @param sslContext SSL context to pass to JsonRpcClient
-	 */
-	public void setSslContext(SSLContext sslContext) {
-		this.sslContext = sslContext;
-	}
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Object getObject() {
+        return proxyObject;
+    }
 
-	/**
-	 * @param hostNameVerifier the hostNameVerifier to pass to JsonRpcClient
-	 */
-	public void setHostNameVerifier(HostnameVerifier hostNameVerifier) {
-		this.hostNameVerifier = hostNameVerifier;
-	}
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public Class<?> getObjectType() {
+        return getServiceInterface();
+    }
 
-	/**
-	 * @param contentType the contentType to pass to JsonRpcClient
-	 */
-	public void setContentType(String contentType) {
-		this.contentType = contentType;
-	}
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public boolean isSingleton() {
+        return true;
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public void setApplicationContext(ApplicationContext applicationContext) {
+        this.applicationContext = applicationContext;
+    }
+
+    /**
+     * @param objectMapper the objectMapper to set
+     */
+    public void setObjectMapper(ObjectMapper objectMapper) {
+        this.objectMapper = objectMapper;
+    }
+
+    /**
+     * @param extraHttpHeaders the extraHttpHeaders to set
+     */
+    public void setExtraHttpHeaders(Map<String, String> extraHttpHeaders) {
+        this.extraHttpHeaders = extraHttpHeaders;
+    }
+
+    /**
+     * @param requestListener the requestListener to set
+     */
+    public void setRequestListener(RequestListener requestListener) {
+        this.requestListener = requestListener;
+    }
+
+    /**
+     * @param sslContext SSL context to pass to JsonRpcClient
+     */
+    public void setSslContext(SSLContext sslContext) {
+        this.sslContext = sslContext;
+    }
+
+    /**
+     * @param hostNameVerifier the hostNameVerifier to pass to JsonRpcClient
+     */
+    public void setHostNameVerifier(HostnameVerifier hostNameVerifier) {
+        this.hostNameVerifier = hostNameVerifier;
+    }
+
+    /**
+     * @param contentType the contentType to pass to JsonRpcClient
+     */
+    public void setContentType(String contentType) {
+        this.contentType = contentType;
+    }
+
 }

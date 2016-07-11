@@ -12,6 +12,7 @@ import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.support.BeanDefinitionBuilder;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
+import org.springframework.cloud.client.loadbalancer.LoadBalancerClient;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.core.io.Resource;
@@ -28,6 +29,8 @@ import org.springframework.util.StringUtils;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Auto-creates proxies for service interfaces annotated with {@link JsonRpcService}.
@@ -41,6 +44,11 @@ public class AutoJsonRpcClientProxyCreator implements BeanFactoryPostProcessor, 
     private URL baseUrl;
     private ObjectMapper objectMapper;
     private String contentType;
+
+    /**
+     * 服务实例名称，与baseURL二选一，这里是自动发现服务时使用
+     */
+    private String serviceId;
 
     @Override
     public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) throws BeansException {
@@ -85,8 +93,14 @@ public class AutoJsonRpcClientProxyCreator implements BeanFactoryPostProcessor, 
     private void registerJsonProxyBean(DefaultListableBeanFactory defaultListableBeanFactory, String className, String path) {
         BeanDefinitionBuilder beanDefinitionBuilder = BeanDefinitionBuilder
                 .rootBeanDefinition(JsonProxyFactoryBean.class)
-                .addPropertyValue("serviceUrl", appendBasePath(path))
                 .addPropertyValue("serviceInterface", className);
+
+        if (StringUtils.isEmpty(serviceId)) {
+            beanDefinitionBuilder.addPropertyValue("serviceUrl", appendBasePath(path));
+        } else {
+            logger.debug("自动发现rpc服务,serviceId={},path={}", serviceId, path);
+            beanDefinitionBuilder.addPropertyValue("serviceId", serviceId).addPropertyValue("serviceUrl", path);
+        }
 
         if (objectMapper != null) {
             beanDefinitionBuilder.addPropertyValue("objectMapper", objectMapper);
@@ -129,5 +143,16 @@ public class AutoJsonRpcClientProxyCreator implements BeanFactoryPostProcessor, 
 
     public void setContentType(String contextType) {
         this.contentType = contextType;
+    }
+
+    public String getServiceId() {
+        return serviceId;
+    }
+
+    /**
+     * @param serviceId 服务实例名称
+     */
+    public void setServiceId(String serviceId) {
+        this.serviceId = serviceId;
     }
 }
