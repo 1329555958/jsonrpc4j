@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerClient;
+import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
 import java.io.BufferedReader;
@@ -257,7 +258,12 @@ public class JsonRpcHttpClient extends JsonRpcClient implements IJsonRpcClient {
      */
     public URL getServiceUrl() throws MalformedURLException {
         if (!StringUtils.isEmpty(serviceId)) {
-            return new URL(loadBalancerClient.choose(serviceId).getUri().toURL(), servicePath);
+            Assert.notNull(loadBalancerClient, "loadBalancerClient is null,need ribbon in the classpath!");
+            ServiceInstance serviceInstance = loadBalancerClient.choose(serviceId);
+            Assert.notNull(serviceInstance, "can't find service of [" + serviceId + "],eureka is on the right way ?");
+            URL url = new URL(serviceInstance.getUri().toURL(), servicePath);
+            logger.debug("lb rpc url :{}", url.toString());
+            return url;
         }
 
         return serviceUrl;
