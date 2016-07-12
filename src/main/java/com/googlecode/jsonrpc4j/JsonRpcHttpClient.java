@@ -3,11 +3,16 @@ package com.googlecode.jsonrpc4j;
 import static com.googlecode.jsonrpc4j.JsonRpcBasicServer.JSONRPC_CONTENT_TYPE;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.googlecode.jsonrpc4j.spring.sleuth.JsonRpcHttpClientSpanInjector;
+import org.kopitubruk.util.json.JSONUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerClient;
+import org.springframework.cloud.sleuth.Span;
+import org.springframework.cloud.sleuth.Tracer;
 import org.springframework.util.Assert;
 import org.springframework.util.StringUtils;
 
@@ -54,6 +59,8 @@ public class JsonRpcHttpClient extends JsonRpcClient implements IJsonRpcClient {
     private String serviceId;
     //rpc 路径
     private String servicePath;
+    // sleuth 追踪器
+    private Tracer tracer;
 
 
     /**
@@ -138,7 +145,14 @@ public class JsonRpcHttpClient extends JsonRpcClient implements IJsonRpcClient {
      */
     @Override
     public Object invoke(String methodName, Object argument, Type returnType, Map<String, String> extraHeaders) throws Throwable {
-        HttpURLConnection connection = prepareConnection(extraHeaders);
+        Object response = null;
+        Span span = tracer.createSpan(serviceId);
+        span.tag("params", JSONUtil.toJSON(argument));
+        span.logEvent(Span.CLIENT_SEND);
+        Map<String, String> spanHeaders = JsonRpcHttpClientSpanInjector.sleuthHeaders(span);
+        spanHeaders.putAll(extraHeaders);
+        logger.debug("connection with extraHeaders:{}", spanHeaders);
+        HttpURLConnection connection = prepareConnection(spanHeaders);
         connection.connect();
         try {
             try (OutputStream send = connection.getOutputStream()) {
@@ -148,16 +162,21 @@ public class JsonRpcHttpClient extends JsonRpcClient implements IJsonRpcClient {
             // read and return value
             try {
                 try (InputStream answer = getStream(connection.getInputStream(), useGzip)) {
-                    return super.readResponse(returnType, answer);
+                    return response = super.readResponse(returnType, answer);
                 }
             } catch (IOException e) {
                 try (InputStream answer = getStream(connection.getErrorStream(), useGzip)) {
-                    return super.readResponse(returnType, answer);
+                    return response = super.readResponse(returnType, answer);
                 } catch (IOException ef) {
                     throw new HttpException(readErrorString(connection), ef);
                 }
             }
         } finally {
+            if (tracer.isTracing()) {
+                span.tag("result", JSONUtil.toJSON(response));
+                span.logEvent(Span.CLIENT_RECV);
+                tracer.close(span);
+            }
             connection.disconnect();
         }
 
@@ -369,6 +388,14 @@ public class JsonRpcHttpClient extends JsonRpcClient implements IJsonRpcClient {
 
     public void setServicePath(String servicePath) {
         this.servicePath = servicePath;
+    }
+
+    public Tracer getTracer() {
+        return tracer;
+    }
+
+    public void setTracer(Tracer tracer) {
+        this.tracer = tracer;
     }
 
 }

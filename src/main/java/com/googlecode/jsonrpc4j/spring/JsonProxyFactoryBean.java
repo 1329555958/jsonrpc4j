@@ -9,6 +9,7 @@ import org.springframework.beans.factory.InitializingBean;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.cloud.client.ServiceInstance;
 import org.springframework.cloud.client.loadbalancer.LoadBalancerClient;
+import org.springframework.cloud.sleuth.Tracer;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.remoting.support.UrlBasedRemoteAccessor;
@@ -55,6 +56,11 @@ class JsonProxyFactoryBean extends UrlBasedRemoteAccessor implements MethodInter
     private String serviceId;
 
 
+    @Autowired
+
+    private Tracer tracer;
+
+
     /**
      * {@inheritDoc}
      */
@@ -89,6 +95,7 @@ class JsonProxyFactoryBean extends UrlBasedRemoteAccessor implements MethodInter
                 jsonRpcHttpClient.setLoadBalancerClient(loadBalancerClient);
                 jsonRpcHttpClient.setServiceId(serviceId);
                 jsonRpcHttpClient.setServicePath(getServiceUrl());
+                jsonRpcHttpClient.setTracer(tracer);
             }
 
             if (contentType != null) {
@@ -207,4 +214,12 @@ class JsonProxyFactoryBean extends UrlBasedRemoteAccessor implements MethodInter
         this.contentType = contentType;
     }
 
+
+    public Tracer getTracer() {
+        return tracer;
+    }
+
+    public void setTracer(Tracer tracer) {
+        this.tracer = tracer;
+    }
 }

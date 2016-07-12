@@ -68,6 +68,9 @@ dependencies {
     compile 'commons-codec:commons-codec:1.10', optional
     compile 'org.apache.httpcomponents:httpcore-nio:4.4.4', optional
     compile 'org.springframework.cloud:spring-cloud-starter-ribbon'
+    compile 'org.springframework.cloud:spring-cloud-starter-sleuth'
+    //http://search.maven.org/#artifactdetails%7Corg.kopitubruk.util%7CJSONUtil%7C1.7%7Cjar
+    compile 'org.kopitubruk.util:JSONUtil:1.7'
 
     testCompile 'junit:junit:4.12'
     testCompile 'org.easymock:easymock:3.4'
