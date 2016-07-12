@@ -146,6 +146,16 @@ publishing {
             }
         }
     }
+    repositories {
+        maven {
+            name 'nexus'
+            url 'http://nexus.vfinance.cn:9081/content/repositories/releases/'
+            credentials {
+                username = 'admin'
+                password = 'scm1qaz!'
+            }
+        }
+    }
 }
 
 bintray {
