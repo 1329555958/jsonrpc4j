@@ -19,8 +19,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.util.StringUtils;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Set;
 
 /**
  * <p>This exporter class is deprecated because it exposes all beans from a spring context that has the
@@ -52,6 +54,45 @@ public class AutoJsonRpcServiceExporter implements BeanFactoryPostProcessor {
     private HttpStatusCodeProvider httpStatusCodeProvider = null;
     private ConvertedParameterTransformer convertedParameterTransformer = null;
 
+    //指定对外提供rpc服务的扫描包路径
+    private static Set<String> servicePackages = new HashSet<>();
+
+    /**
+     * 添加要扫描的rpc服务接口实现类包路径
+     *
+     * @param pkg 包路径,会自动扫描其子包
+     */
+    public static void addImplScanPackage(String pkg) {
+        servicePackages.add(pkg);
+    }
+
+    private static boolean isInPackage(String className, String beanName) {
+        if (StringUtils.isEmpty(className)) {
+            logger.debug("can't find the beanClassName for [{}]", beanName);
+            return false;
+        }
+        if (servicePackages.size() == 0) {
+            return true;
+        }
+        int end = 0;
+        //以.为分隔，逐个从右向左匹配，获取到匹配度最高的服务实例名称
+        while (!servicePackages.contains(className)) {
+            end = className.lastIndexOf(".");
+            if (end == -1) {
+                break;
+            }
+            className = className.substring(0, end);
+        }
+        return servicePackages.contains(className);
+    }
+
+    private static void hasScanPackages() {
+        if (servicePackages.size() == 0) {
+            logger.debug("no clear packages to scan,scan all packages,this can cause find more rpc services than you " +
+                    "want to provide!");
+        }
+    }
+
     /**
      * Finds the beans to expose
      * map.
@@ -60,9 +101,13 @@ public class AutoJsonRpcServiceExporter implements BeanFactoryPostProcessor {
      */
     private static Map<String, String> findServiceBeanDefinitions(ConfigurableListableBeanFactory beanFactory) {
         final Map<String, String> serviceBeanNames = new HashMap<>();
+        hasScanPackages();
         for (String beanName : beanFactory.getBeanDefinitionNames()) {
             JsonRpcService jsonRpcPath = beanFactory.findAnnotationOnBean(beanName, JsonRpcService.class);
             if (hasServiceAnnotation(jsonRpcPath)) {
+                if (!isInPackage(beanFactory.getBeanDefinition(beanName).getBeanClassName(), beanName)) {
+                    continue;
+                }
                 String pathValue = jsonRpcPath.value();
                 //默认使用bean名称作为路径
                 if (StringUtils.isEmpty(pathValue)) {
@@ -95,20 +140,24 @@ public class AutoJsonRpcServiceExporter implements BeanFactoryPostProcessor {
     }
 
     @SuppressWarnings("Convert2streamapi")
-    private static void collectFromParentBeans(ConfigurableListableBeanFactory beanFactory, Map<String, String> serviceBeanNames) {
+    private static void collectFromParentBeans(ConfigurableListableBeanFactory beanFactory, Map<String, String>
+            serviceBeanNames) {
         BeanFactory parentBeanFactory = beanFactory.getParentBeanFactory();
         if (parentBeanFactory != null && ConfigurableListableBeanFactory.class.isInstance(parentBeanFactory)) {
-            for (Entry<String, String> entry : findServiceBeanDefinitions((ConfigurableListableBeanFactory) parentBeanFactory).entrySet()) {
+            for (Entry<String, String> entry : findServiceBeanDefinitions((ConfigurableListableBeanFactory)
+                    parentBeanFactory).entrySet()) {
                 if (isNotDuplicateService(serviceBeanNames, entry.getKey(), entry.getValue()))
                     serviceBeanNames.put(entry.getKey(), entry.getValue());
             }
         }
     }
 
-    private static boolean isNotDuplicateService(Map<String, String> serviceBeanNames, String beanName, String pathValue) {
+    private static boolean isNotDuplicateService(Map<String, String> serviceBeanNames, String beanName, String
+            pathValue) {
         if (serviceBeanNames.containsKey(pathValue)) {
             String otherBeanName = serviceBeanNames.get(pathValue);
-            logger.debug("Duplicate JSON-RPC path specification: found {} on both [{}] and [{}].", pathValue, beanName, otherBeanName);
+            logger.debug("Duplicate JSON-RPC path specification: found {} on both [{}] and [{}].", pathValue,
+                    beanName, otherBeanName);
             return false;
         }
         return true;
@@ -138,10 +187,13 @@ public class AutoJsonRpcServiceExporter implements BeanFactoryPostProcessor {
     /**
      * Registers the new beans with the bean factory.
      */
-    private void registerServiceProxy(DefaultListableBeanFactory defaultListableBeanFactory, String servicePath, String serviceBeanName) {
-        BeanDefinitionBuilder builder = BeanDefinitionBuilder.rootBeanDefinition(JsonServiceExporter.class).addPropertyReference("service", serviceBeanName);
+    private void registerServiceProxy(DefaultListableBeanFactory defaultListableBeanFactory, String servicePath,
+                                      String serviceBeanName) {
+        BeanDefinitionBuilder builder = BeanDefinitionBuilder.rootBeanDefinition(JsonServiceExporter.class)
+                .addPropertyReference("service", serviceBeanName);
         BeanDefinition serviceBeanDefinition = findBeanDefinition(defaultListableBeanFactory, serviceBeanName);
-        for (Class<?> currentInterface : getBeanInterfaces(serviceBeanDefinition, defaultListableBeanFactory.getBeanClassLoader())) {
+        for (Class<?> currentInterface : getBeanInterfaces(serviceBeanDefinition, defaultListableBeanFactory
+                .getBeanClassLoader())) {
             if (currentInterface.isAnnotationPresent(JsonRpcService.class)) {
                 String serviceInterface = currentInterface.getName();
                 logger.debug("Registering interface '{}' for JSON-RPC bean [{}].", serviceInterface, serviceBeanName);
