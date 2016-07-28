@@ -57,7 +57,6 @@ class JsonProxyFactoryBean extends UrlBasedRemoteAccessor implements MethodInter
 
 
     @Autowired
-
     private Tracer tracer;
 
 

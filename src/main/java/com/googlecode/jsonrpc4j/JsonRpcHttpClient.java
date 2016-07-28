@@ -4,6 +4,7 @@ import static com.googlecode.jsonrpc4j.JsonRpcBasicServer.JSONRPC_CONTENT_TYPE;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.googlecode.jsonrpc4j.spring.sleuth.JsonRpcHttpClientSpanInjector;
+import org.apache.commons.collections.MapUtils;
 import org.kopitubruk.util.json.JSONUtil;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -146,9 +147,13 @@ public class JsonRpcHttpClient extends JsonRpcClient implements IJsonRpcClient {
     @Override
     public Object invoke(String methodName, Object argument, Type returnType, Map<String, String> extraHeaders) throws Throwable {
         Object response = null;
-        Span span = tracer.createSpan(serviceId);
-        span.tag("params", JSONUtil.toJSON(argument));
-        span.logEvent(Span.CLIENT_SEND);
+        Span span = null;
+        if (tracer != null) {
+            span = tracer.createSpan(serviceId);
+            span.tag("params", JSONUtil.toJSON(argument));
+            span.logEvent(Span.CLIENT_SEND);
+        }
+
         Map<String, String> spanHeaders = JsonRpcHttpClientSpanInjector.sleuthHeaders(span);
         spanHeaders.putAll(extraHeaders);
         logger.debug("connection with extraHeaders:{}", spanHeaders);
@@ -172,7 +177,7 @@ public class JsonRpcHttpClient extends JsonRpcClient implements IJsonRpcClient {
                 }
             }
         } finally {
-            if (tracer.isTracing()) {
+            if (tracer != null && tracer.isTracing()) {
                 span.tag("result", JSONUtil.toJSON(response));
                 span.logEvent(Span.CLIENT_RECV);
                 tracer.close(span);
@@ -280,13 +285,13 @@ public class JsonRpcHttpClient extends JsonRpcClient implements IJsonRpcClient {
             Assert.notNull(loadBalancerClient, "loadBalancerClient is null,need ribbon in the classpath!");
             ServiceInstance serviceInstance = loadBalancerClient.choose(serviceId);
             Assert.notNull(serviceInstance, "can't find service of [" + serviceId + "],eureka is on the right way ?");
-            URL url = new URL(serviceInstance.getUri().toURL(), servicePath);
+            URL url = new URL(serviceInstance.getUri().toURL(), MapUtils.getString(serviceInstance.getMetadata(), "context-path", "") + Util.addPrefixAndDistinct(servicePath));
             logger.debug("lb rpc url :{}", url.toString());
             return url;
         }
-
         return serviceUrl;
     }
+
 
     public LoadBalancerClient getLoadBalancerClient() {
         return loadBalancerClient;

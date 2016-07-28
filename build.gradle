@@ -17,7 +17,7 @@ plugins {
 }
 
 description = 'This project aims to provide the facility to easily implement JSON-RPC for the java programming language.can user ribbion to loadbalance'
-version = '2.0.2'
+version = '2.0.7'
 group = 'com.github.wch.jsonrpc4j'
 
 sourceCompatibility = 1.7

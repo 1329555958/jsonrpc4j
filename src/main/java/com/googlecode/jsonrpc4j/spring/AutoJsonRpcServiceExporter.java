@@ -1,9 +1,6 @@
 package com.googlecode.jsonrpc4j.spring;
 
-import static java.lang.String.format;
-import static org.springframework.util.ClassUtils.forName;
-import static org.springframework.util.ClassUtils.getAllInterfacesForClass;
-
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.googlecode.jsonrpc4j.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -14,8 +11,6 @@ import org.springframework.beans.factory.config.BeanFactoryPostProcessor;
 import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
 import org.springframework.beans.factory.support.BeanDefinitionBuilder;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
-
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.util.StringUtils;
 
 import java.util.HashMap;
@@ -23,6 +18,10 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
+
+import static java.lang.String.format;
+import static org.springframework.util.ClassUtils.forName;
+import static org.springframework.util.ClassUtils.getAllInterfacesForClass;
 
 /**
  * <p>This exporter class is deprecated because it exposes all beans from a spring context that has the
@@ -41,7 +40,6 @@ public class AutoJsonRpcServiceExporter implements BeanFactoryPostProcessor {
 
     private static final Logger logger = LoggerFactory.getLogger(AutoJsonRpcServiceExporter.class);
 
-    private static final String PATH_PREFIX = "/";
 
     private ObjectMapper objectMapper;
     private ErrorResolver errorResolver = null;
@@ -181,7 +179,7 @@ public class AutoJsonRpcServiceExporter implements BeanFactoryPostProcessor {
      * export a bean automatically, the name should start with a '/'.
      */
     private String makeUrlPath(String servicePath) {
-        return PATH_PREFIX.concat(servicePath);
+        return Util.addPrefixAndDistinct(servicePath);
     }
 
     /**

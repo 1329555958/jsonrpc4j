@@ -4,6 +4,10 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import org.springframework.util.StringUtils;
 
 public class Util {
+    /**
+     * jsonrpc 服务的地址前缀
+     */
+    public static final String RPC_PATH_PREFIX = "/jsonrpc/";
 
     @SuppressWarnings("PMD.AvoidUsingHardCodedIP")
     public static final String DEFAULT_HOSTNAME = "0.0.0.0";
@@ -21,6 +25,16 @@ public class Util {
     }
 
     /**
+     * 添加rpc服务地址前缀，并去掉重复的/
+     *
+     * @param path
+     * @return
+     */
+    public static String addPrefixAndDistinct(String path) {
+        return RPC_PATH_PREFIX.concat(path).replaceAll("/+", "/");
+    }
+
+    /**
      * 将完整的类路径转换成路径 即.变成/
      *
      * @param className 完整名称
@@ -31,6 +45,6 @@ public class Util {
     }
 
     public static void main(String[] args) {
-        System.out.println(className2Path(Util.class.getName()));
+        System.out.println(addPrefixAndDistinct("//a///b////c/d"));
     }
 }
